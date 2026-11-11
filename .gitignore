@@ -1,0 +1,43 @@
+# Build
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+bin/
+out/
+
+# Dados locais (H2 e fotos enviadas)
+data/
+
+# Ferramentas locais
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+AGENTS.md
+contexto/
+atualizacoes/
+/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.md
+
+# Material de aula
+material-aula/
+
+# Ambiente
+.env
+.env.local
+*.env
+!.env.example
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
