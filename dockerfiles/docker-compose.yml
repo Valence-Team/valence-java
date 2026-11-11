@@ -1,0 +1,31 @@
+# Infraestrutura local do perfil dev
+# Subir só o RabbitMQ:            docker compose -f dockerfiles/docker-compose.yml up -d
+# Subir RabbitMQ e API juntos:    docker compose -f dockerfiles/docker-compose.yml --profile completo up -d --build
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: valence-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: unless-stopped
+
+  api:
+    profiles: ["completo"]
+    build:
+      context: ..
+      dockerfile: dockerfiles/Dockerfile
+    container_name: valence-api
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
+      IA_SERVICE_URL: http://host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rabbitmq

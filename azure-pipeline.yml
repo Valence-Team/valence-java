@@ -1,0 +1,108 @@
+# Pipeline da API Java do Valence: Build (CI) e Release (CD) no Azure App Service.
+# A main é protegida por política de branch: o build roda só depois do merge de um PR.
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr: none
+
+variables:
+  - group: valence-segredos
+  - name: azureServiceConnection
+    value: 'valence-azure'
+  - name: webAppName
+    value: 'app-valence-api-rm563620'
+  - name: artefato
+    value: 'valence-api'
+  - name: vmImage
+    value: 'ubuntu-latest'
+
+stages:
+  - stage: Build
+    displayName: 'Build (CI)'
+    jobs:
+      - job: compilar_testar
+        displayName: 'Compilar, testar e publicar o pacote'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - task: JavaToolInstaller@0
+            displayName: 'Configurar Java 21'
+            inputs:
+              versionSpec: '21'
+              jdkArchitectureOption: 'x64'
+              jdkSourceOption: 'PreInstalled'
+
+          - task: Maven@4
+            displayName: 'Maven: testes JUnit e pacote'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package'
+              options: '-B'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              testRunTitle: 'Testes JUnit da API Valence'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: 'default'
+              mavenVersionOption: 'Default'
+
+          - task: CopyFiles@2
+            displayName: 'Separar o .jar'
+            inputs:
+              SourceFolder: '$(System.DefaultWorkingDirectory)/target'
+              Contents: 'valence-api.jar'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publicar artefato'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: $(artefato)
+
+  - stage: Release
+    displayName: 'Release (CD) no App Service'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: implantar
+        displayName: 'Implantar no Azure App Service'
+        environment: 'valence-producao'
+        pool:
+          vmImage: $(vmImage)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebApp@1
+                  displayName: 'Deploy do .jar e variáveis de ambiente'
+                  inputs:
+                    azureSubscription: ${{ variables.azureServiceConnection }}
+                    appType: 'webAppLinux'
+                    appName: $(webAppName)
+                    package: '$(Pipeline.Workspace)/$(artefato)/valence-api.jar'
+                    runtimeStack: 'JAVA|21-java21'
+                    appSettings: >-
+                      -SPRING_PROFILES_ACTIVE prod
+                      -SERVER_PORT 80
+                      -DB_URL "$(DB_URL)"
+                      -DB_USERNAME "$(DB_USERNAME)"
+                      -DB_PASSWORD "$(DB_PASSWORD)"
+                      -JWT_SECRET "$(JWT_SECRET)"
+                      -RABBITMQ_URI "$(RABBITMQ_URI)"
+                      -LLM_API_KEY "$(LLM_API_KEY)"
+                      -LLM_MODEL "$(LLM_MODEL)"
+                      -IA_SERVICE_URL "$(IA_SERVICE_URL)"
+                      -IA_API_KEY "$(IA_API_KEY)"
+                      -FOTOS_DIR /home/data/fotos
+
+                - script: |
+                    for tentativa in 1 2 3 4 5 6 7 8 9 10; do
+                      if curl -fsS "https://$(webAppName).azurewebsites.net/actuator/health/liveness"; then
+                        exit 0
+                      fi
+                      sleep 15
+                    done
+                    exit 1
+                  displayName: 'Verificar saúde da API publicada'
