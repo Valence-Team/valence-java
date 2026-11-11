@@ -1,0 +1,38 @@
+flowchart TB
+    subgraph U["1 · Usuários"]
+        direction LR
+        P["Produtor"]
+        A["Agrônomo"]
+        G["Gestor"]
+    end
+    APP["2 · App Mobile<br/>React Native + Expo"]
+    subgraph AZ["Azure · recursos criados por script Azure CLI"]
+        direction LR
+        API["3 · API Java<br/>Spring Boot 3.5 · Java 21<br/>Spring Security + JWT · Spring AI<br/>App Service Linux"]
+        SQL[("4 · Azure SQL<br/>TB_USUARIO · TB_PROPRIEDADE<br/>TB_OCORRENCIA · TB_ALERTA ...")]
+    end
+    subgraph IAS["Inteligência artificial"]
+        direction LR
+        IA["5 · Serviço de IA (Python)<br/>visão computacional + RAG"]
+        LLM["6 · LLM Groq<br/>openai/gpt-oss-120b"]
+    end
+    subgraph MQ["7 · RabbitMQ (CloudAMQP)"]
+        direction LR
+        EX{{"exchange valence.eventos<br/>topic"}}
+        QJ["fila valence.java.alertas"]
+        QN["fila valence.observatorio"]
+    end
+    NET["8 · Observatório .NET<br/>dados abertos"]
+    DEV["9 · Azure DevOps<br/>Boards · Repos · Pipelines CI/CD"]
+
+    U --> APP
+    APP -->|"REST + JWT"| API
+    API -->|"JPA"| SQL
+    API -->|"foto e sintomas · tempo limite 10 s"| IA
+    API -->|"Spring AI · triagem e denúncia em JSON"| LLM
+    API -->|"publica ocorrencia.triada e laudo.emitido"| EX
+    EX -->|"ocorrencia.triada"| QJ
+    EX -->|"ocorrencia.triada e laudo.emitido"| QN
+    QJ -->|"consumidor Java cria alertas"| API
+    QN --> NET
+    DEV -->|"build, testes JUnit, deploy"| API
